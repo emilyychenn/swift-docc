@@ -226,14 +226,17 @@ extension Docc.ProcessArchive {
             return returnSymbolLinks
         }
         
-        /// Given a file path to a renderJSON, return that symbol's url from its identifier
         func findSymbolLink(symbolPath: URL) throws -> URL? {
+            struct ContainerWithTopicReferenceIdentifier: Codable {
+                var identifier: ResolvedTopicReference
+            }
+            
             let renderJSONData = try Data(contentsOf: symbolPath)
             let decoder = RenderJSONDecoder.makeDecoder()
+            
             do {
-                let renderNode = try decoder.decode(RenderNode.self, from: renderJSONData)
-                
-                return renderNode.identifier.url
+                let identifier = try decoder.decode(ContainerWithTopicReferenceIdentifier.self, from: renderJSONData).identifier
+                return identifier.url
             } catch {
                 return nil
             }
