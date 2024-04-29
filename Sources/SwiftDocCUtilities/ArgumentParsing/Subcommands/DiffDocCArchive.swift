@@ -25,7 +25,13 @@ extension Docc.ProcessArchive {
             shouldDisplay: true)
         
         /// Content of the 'changeLog' template.
-        static func changeLogTemplateFileContent(frameworkName: String, additionLinks: String, removalLinks: String) -> [String : String] {
+        static func changeLogTemplateFileContent(
+            frameworkName: String,
+            initialDocCArchiveName: String,
+            newerDocCArchiveName: String,
+            additionLinks: String,
+            removalLinks: String
+        ) -> [String : String] {
             [
                 "\(frameworkName.localizedCapitalized)_ChangeLog.md": """
                     # \(frameworkName.localizedCapitalized) Updates
@@ -38,19 +44,19 @@ extension Docc.ProcessArchive {
 
                     Browse notable changes in \(frameworkName.localizedCapitalized).
                     
-                    ## Version: Diff between [Release A] and [Release B] // TODO: find latest date for each given release
+                    ## Version: Diff between \(initialDocCArchiveName) and \(newerDocCArchiveName)
 
                     
                     ### Change Log
                     
                     #### Additions
-                    _New symbols added in [Version 2] that did not previously exist in [Version 1]._
+                    _New symbols added in \(newerDocCArchiveName) that did not previously exist in \(initialDocCArchiveName)._
                                         
                     \(additionLinks)
                     
                     
                     #### Removals
-                    _Old symbols that existed in [Version 1] that no longer exist in [Version 2]._
+                    _Old symbols that existed in \(initialDocCArchiveName) that no longer exist in \(newerDocCArchiveName)._
                                         
                     \(removalLinks)
                     
@@ -62,10 +68,22 @@ extension Docc.ProcessArchive {
         
         @Argument(
             help: ArgumentHelp(
+                "The name of the initial DocC Archive to be compared.",
+                valueName: "initialDocCArchiveName"))
+        var initialDocCArchiveName: String
+        
+        @Argument(
+            help: ArgumentHelp(
                 "The path to the initial DocC Archive to be compared.",
                 valueName: "initialDocCArchive"),
             transform: URL.init(fileURLWithPath:))
         var initialDocCArchivePath: URL
+        
+        @Argument(
+            help: ArgumentHelp(
+                "The name of the newer DocC Archive to be compared.",
+                valueName: "newerDocCArchiveName"))
+        var newerDocCArchiveName: String
         
         @Argument(
             help: ArgumentHelp(
@@ -103,10 +121,15 @@ extension Docc.ProcessArchive {
             let removalsExternalURLs = Set(removedFromOldSet.map { findExternalLink(identifierURL: $0) })
             
             // The framework name is the path component after "/documentation/".
-            let frameworkName = try findFrameworkName(initialPath: initialDocCArchivePath)
+            var frameworkName: String = "No_Framework_Name"
+            var potentialFrameworkName = try findFrameworkName(initialPath: initialDocCArchivePath)
+            if potentialFrameworkName == nil {
+                potentialFrameworkName = try findFrameworkName(initialPath: newerDocCArchivePath)
+            }
             
-            // TODO: find versioning info?
-            // use DiffAvailability if it exists (else: default use current date / file creation date?)
+            if potentialFrameworkName != nil {
+                frameworkName = potentialFrameworkName ?? "No_Framework_Name"
+            }
             
             var additionLinks: String = ""
             for addition in additionsExternalURLs {
@@ -119,7 +142,7 @@ extension Docc.ProcessArchive {
             }
             
             // Create markdown file with changes in the newer DocC Archive that do not exist in the initial DocC Archive.
-            for fileNameAndContent in Docc.ProcessArchive.DiffDocCArchive.changeLogTemplateFileContent(frameworkName: frameworkName, additionLinks: additionLinks, removalLinks: removalLinks) {
+            for fileNameAndContent in Docc.ProcessArchive.DiffDocCArchive.changeLogTemplateFileContent(frameworkName: frameworkName, initialDocCArchiveName: initialDocCArchiveName, newerDocCArchiveName: newerDocCArchiveName, additionLinks: additionLinks, removalLinks: removalLinks) {
                 let fileName = fileNameAndContent.key
                 let content = fileNameAndContent.value
                 try FileManager.default.createFile(at: initialDocCArchivePath.deletingLastPathComponent().appendingPathComponent(fileName), contents: Data(content.utf8))
@@ -133,18 +156,18 @@ extension Docc.ProcessArchive {
             }
         }
 
-        // The framework name is the path component after "/documentation/".
-        func findFrameworkName(initialPath: URL) throws -> String {
+        /// The framework name is the path component after "/documentation/".
+        func findFrameworkName(initialPath: URL) throws -> String? {
             guard let enumerator = FileManager.default.enumerator(
                 at: initialPath,
                 includingPropertiesForKeys: [],
                 options: .skipsHiddenFiles,
                 errorHandler: nil
             ) else {
-                return "NoFrameworkFound"
+                return nil
             }
             
-            var frameworkName = "NoFrameworkName"
+            var frameworkName: String?
             for case let filePath as URL in enumerator {
                 let pathComponents = filePath.pathComponents
                 var isFrameworkName = false
@@ -193,26 +216,26 @@ extension Docc.ProcessArchive {
             var returnSymbolLinks: [URL] = []
             for case let filePath as URL in enumerator {
                 if filePath.lastPathComponent.hasSuffix(".json") {
-                    let newSymbolLinks = try findSymbolLink(symbolPath: filePath, symbolLinks: returnSymbolLinks)
-                    returnSymbolLinks = newSymbolLinks
+                    let symbolLink = try findSymbolLink(symbolPath: filePath)
+                    if symbolLink != nil {
+                        returnSymbolLinks.append(symbolLink!)
+                    }
                 }
             }
             
             return returnSymbolLinks
         }
         
-        /// Given a file path to a renderJSON, return that symbol's url from its identifier and append it to the existing symbolLinks array.
-        func findSymbolLink(symbolPath: URL, symbolLinks: [URL]) throws -> [URL] {
+        /// Given a file path to a renderJSON, return that symbol's url from its identifier
+        func findSymbolLink(symbolPath: URL) throws -> URL? {
             let renderJSONData = try Data(contentsOf: symbolPath)
             let decoder = RenderJSONDecoder.makeDecoder()
-            
             do {
                 let renderNode = try decoder.decode(RenderNode.self, from: renderJSONData)
-                var newSymbolLinks = symbolLinks
-                newSymbolLinks.append(renderNode.identifier.url)
-                return newSymbolLinks
+                
+                return renderNode.identifier.url
             } catch {
-                return symbolLinks
+                return nil
             }
         }
                     

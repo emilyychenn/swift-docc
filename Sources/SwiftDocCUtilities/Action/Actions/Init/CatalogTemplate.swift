@@ -25,6 +25,7 @@ struct CatalogTemplate {
         case .tutorial:
             self.files = CatalogTemplateKind.tutorialTemplateFiles(title)
             self.additionalDirectories = ["Resources", "Chapter01/Resources"]
+            
         }
     }
 }
