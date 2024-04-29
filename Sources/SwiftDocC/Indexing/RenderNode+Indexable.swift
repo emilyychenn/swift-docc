@@ -43,7 +43,7 @@ extension RenderNode: Indexable {
             kind = .tutorialSection
         case .overview:
             kind = .overview
-        case .article:
+        case .article, .technologies:
             kind = .article
         case .symbol:
             kind = .symbol

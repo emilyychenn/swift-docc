@@ -121,6 +121,8 @@ extension RenderNode {
             return NavigatorIndex.PageType.section
         case .overview:
             return NavigatorIndex.PageType.overview
+        case .technologies:
+            return NavigatorIndex.PageType.article
         case .symbol:
             if let symbolKind = metadata.symbolKind {
                 return NavigatorIndex.PageType(symbolKind: symbolKind)
